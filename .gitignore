@@ -1,0 +1,6 @@
+alt-input/
+dist-newstyle/
+.ghc.environment.*
+secrets
+y201[56789]
+y202[01]
