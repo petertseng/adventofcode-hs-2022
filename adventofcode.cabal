@@ -60,3 +60,8 @@ executable 04_camp_cleanup
   import: bin, flags
   build-depends: base, adventofcode2022, aocsplit
   main-is:       04_camp_cleanup.hs
+
+executable 05_supply_stacks
+  import: bin, flags
+  build-depends: base, adventofcode2022, aocsplit, containers
+  main-is:       05_supply_stacks.hs
