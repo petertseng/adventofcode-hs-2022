@@ -65,3 +65,8 @@ executable 05_supply_stacks
   import: bin, flags
   build-depends: base, adventofcode2022, aocsplit, containers
   main-is:       05_supply_stacks.hs
+
+executable 06_tuning_trouble
+  import: bin, flags
+  build-depends: base, adventofcode2022
+  main-is:       06_tuning_trouble.hs
