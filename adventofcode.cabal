@@ -90,3 +90,9 @@ executable 10_cathode_ray_tube
   import: bin, flags
   build-depends: base, adventofcode2022
   main-is:       10_cathode_ray_tube.hs
+
+executable 11_monkey_in_the_middle
+  import: bin, flags
+  -- keeping array in to easily swap to itemwise
+  build-depends: base, adventofcode2022, aocsplit, array, containers
+  main-is:       11_monkey_in_the_middle.hs
