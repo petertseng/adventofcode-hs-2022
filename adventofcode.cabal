@@ -35,6 +35,12 @@ library
   exposed-modules: AdventOfCode
   build-depends:   base
 
+library aocsearch
+  import: flags
+  hs-source-dirs:  lib
+  exposed-modules: AdventOfCode.Search
+  build-depends:   base, containers
+
 library aocsplit
   import: flags
   hs-source-dirs:  lib
@@ -96,3 +102,9 @@ executable 11_monkey_in_the_middle
   -- keeping array in to easily swap to itemwise
   build-depends: base, adventofcode2022, aocsplit, array, containers
   main-is:       11_monkey_in_the_middle.hs
+
+executable 12_hill_climbing_algorithm
+  import: bin, flags
+  -- !? added in array 0.5.6.0
+  build-depends: base, adventofcode2022, aocsearch, array >= 0.5.6.0
+  main-is:       12_hill_climbing_algorithm.hs
