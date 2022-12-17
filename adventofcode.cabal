@@ -128,3 +128,8 @@ executable 16_proboscidea_volcanium
   import: bin, flags
   build-depends: base, adventofcode2022, aocsearch, array, containers
   main-is:       16_proboscidea_volcanium.hs
+
+executable 17_pyroclastic_flow
+  import: bin, flags
+  build-depends: base, adventofcode2022, containers, mtl
+  main-is:       17_pyroclastic_flow.hs
