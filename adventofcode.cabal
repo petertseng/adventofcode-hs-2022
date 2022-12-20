@@ -138,3 +138,8 @@ executable 18_boiling_boulders
   import: bin, flags
   build-depends: base, adventofcode2022, aocsearch, aocsplit, containers
   main-is:       18_boiling_boulders.hs
+
+executable 19_not_enough_minerals
+  import: bin, flags
+  build-depends: base, adventofcode2022, containers, mtl
+  main-is:       19_not_enough_minerals.hs
