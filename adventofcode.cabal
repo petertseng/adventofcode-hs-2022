@@ -149,3 +149,8 @@ executable 20_grove_positioning_system
   build-depends: base, adventofcode2022, array, containers
   -- keeping containers in to easily swap to Seq
   main-is:       20_grove_positioning_system.hs
+
+executable 21_monkey_math
+  import: bin, flags
+  build-depends: base, adventofcode2022, aocsplit, containers
+  main-is:       21_monkey_math.hs
