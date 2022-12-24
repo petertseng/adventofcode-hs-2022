@@ -165,3 +165,8 @@ executable 23_unstable_diffusion
   -- modifyArray added in array 0.5.6.0
   build-depends: base, adventofcode2022, array >= 0.5.6.0, containers
   main-is:       23_unstable_diffusion.hs
+
+executable 24_blizzard_basin
+  import: bin, flags
+  build-depends: base, adventofcode2022, array
+  main-is:       24_blizzard_basin.hs
