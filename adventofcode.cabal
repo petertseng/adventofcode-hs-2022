@@ -163,6 +163,7 @@ executable 22_monkey_map
 executable 23_unstable_diffusion
   import: bin, flags
   -- modifyArray added in array 0.5.6.0
+  -- keeping containers in to easily swap to Map
   build-depends: base, adventofcode2022, array >= 0.5.6.0, containers
   main-is:       23_unstable_diffusion.hs
 
