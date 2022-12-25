@@ -1,77 +1,96 @@
-{-# LANGUAGE BinaryLiterals #-}
-
 import AdventOfCode (readInputFile)
 
-import Data.Array ((!), Array, listArray)
-import Data.Bits ((.&.), (.|.), bit, shiftL, shiftR)
-import Data.List (elemIndex, find, mapAccumL)
-import qualified Data.Map as Map
-import Data.Maybe (catMaybes, fromJust)
-import Data.Set (Set)
-import qualified Data.Set as Set
+import Control.Monad (foldM, unless)
+import Data.Array ((!), Array, assocs, bounds, listArray)
+import Data.Array.MArray (modifyArray, newArray)
+import Data.Array.ST (runSTArray)
+import Data.Bits ((.&.), (.|.), complement, popCount, shiftR, shiftL)
+import Data.Foldable (for_)
+import Data.List (find, foldl', unfoldr)
+import Data.Maybe (fromMaybe)
 
-data Dir = North | South | West | East deriving (Eq)
-type Pos = (Int, Int)
+data Dir = North | South | West | East
 
-neighs :: Array Int (Bool, [Dir])
-neighs = listArray (0, 511) [(n .&. 0b111101111 == 0, [dir | dir <- [North, South, East, West], n .&. dirMask dir == 0]) | n <- [0 .. 511 :: Int]]
-  where dirMask North = 0b001001001
-        dirMask South = 0b100100100
-        dirMask East  = 0b111000000
-        dirMask West  = 0b000000111
+step :: (Array Int Integer, [Dir]) -> Maybe (Int, (Array Int Integer, [Dir]))
+step (grid, dirs) = (\grid' -> if bounds grid' == (0, 0) then Nothing else Just (nonzeroArea grid', (grid', drop 1 dirs))) $ runSTArray $ do
+  let (minY, maxY) = bounds grid
+      needPadBefore = grid ! minY /= 0
+      needPadAfter = grid ! maxY /= 0
+      minY' = minY - if needPadBefore then 1 else 0
+      maxY' = maxY + if needPadAfter then 1 else 0
+  newGrid <- newArray (minY', maxY') 0
+  let setBits _ 0 = return ()
+      setBits y bits = modifyArray newGrid y (.|. bits)
 
-neighsByDir :: Array Int (Maybe Dir)
-neighsByDir = listArray (0, 2047) [firstDir (neighs ! n) (take 4 (drop i (cycle [North, South, West, East]))) | n <- [0 .. 511], i <- [0 .. 3]]
-  where firstDir (True, _) _ = Nothing
-        firstDir (False, freeDirs) wantDirs = find (`elem` freeDirs) wantDirs
+  (intoNew, intoLast, extendingEast, anyMoved) <- foldM (\(prevSouth, prevPrevSouth, extEast, anyMoved') (y, row) -> do
+      let north = if y == minY then 0 else grid ! (y - 1)
+          northwest = north `shiftR` 1
+          northeast = north `shiftL` 1
+          norths = north .|. northwest .|. northeast
 
-propose :: Set Pos -> Int -> (Int, Int, Int) -> Pos -> ((Int, Int, Int), Maybe (Pos, [Pos]))
-propose elves t (prevY, _, _) pos@(y, x) | y /= prevY = propose elves t (y, x - 3, 0) pos
-propose elves t (_, prevX, neigh) pos@(y, x) =
-  let dx = x - prevX
-      neigh0 = neigh `shiftR` (dx * 3)
-      neigh1 = if dx > 2 then neigh0 .|. col elves y (x - 1) 0 else neigh0
-      neigh2 = if dx > 1 then neigh1 .|. col elves y x 3 else neigh1
-      neigh3 = neigh2 .|. col elves y (x + 1) 6
-  in ((y, x, neigh3), fmap (\dir -> (step dir pos, [pos])) (neighsByDir ! ((neigh3 `shiftL` 2) .|. (t .&. 0b11))))
+          south = if y == maxY then 0 else grid ! (y + 1)
+          southwest = south `shiftR` 1
+          southeast = south `shiftL` 1
+          souths = south .|. southwest .|. southeast
 
-col :: Set Pos -> Int -> Int -> Int -> Int
-col elves y x offset = (if (y - 1, x) `Set.member` elves then bit offset       else 0)
-                   .|. (if (y    , x) `Set.member` elves then bit (offset + 1) else 0)
-                   .|. (if (y + 1, x) `Set.member` elves then bit (offset + 2) else 0)
+          west = row `shiftR` 1
+          east = row `shiftL` 1
 
-elfMove :: (Set Pos, [Dir], Int) -> (Set Pos, [Dir], Int)
-elfMove (elves, dirs, t) = (moveSuccesses, drop 1 dirs, t + 1)
-  where (_, proposes) = mapAccumL (propose elves t) (maxBound, maxBound, 0) (Set.toList elves)
-        combinedProposes = Map.fromListWith (++) (catMaybes proposes)
-        successfulProposes = Map.mapMaybe single combinedProposes
-        moveSuccesses = Set.union (Map.keysSet successfulProposes) (elves `Set.difference` Set.fromList (Map.elems successfulProposes))
+          lonely = row .&. complement west .&. complement east .&. complement norths .&. complement souths
 
-single :: [a] -> Maybe a
-single [] = Nothing
-single [x] = Just x
-single (_:_) = Nothing
+          (proposeNorth, proposeSouth, proposeWest, proposeEast, canMove) = foldl' proposeDir (undefined, undefined, undefined, undefined, row .&. complement lonely) (take 4 dirs)
+          proposeDir (_, ps, pw, pe, cm) North = let pn = cm .&. complement norths in (pn, ps, pw, pe, cm .&. complement pn)
+          proposeDir (pn, _, pw, pe, cm) South = let ps = cm .&. complement souths in (pn, ps, pw, pe, cm .&. complement ps)
+          proposeDir (pn, ps, _, pe, cm) West = let pw = cm .&. complement northwest .&. complement southwest .&. complement west in (pn, ps, pw, pe, cm .&. complement pw)
+          proposeDir (pn, ps, pw, _, cm) East = let pe = cm .&. complement northeast .&. complement southeast .&. complement east in (pn, ps, pw, pe, cm .&. complement pe)
 
-step :: Dir -> Pos -> Pos
-step North (y, x) = (y - 1, x)
-step South (y, x) = (y + 1, x)
-step West (y, x) = (y, x - 1)
-step East (y, x) = (y, x + 1)
+          northOK = proposeNorth .&. complement prevPrevSouth
+          prevPrevSouthOK = prevPrevSouth .&. complement proposeNorth
+      setBits (y - 1) (northOK .|. prevPrevSouthOK)
 
-enumGrid :: [[a]] -> [(a, (Int, Int))]
-enumGrid = concat . zipWith enumRow [0..]
-  where enumRow y = zipWith (\x c -> (c, (y, x))) [0..]
+      let northSouthConflict = proposeNorth .&. prevPrevSouth
+      setBits (y - 2) northSouthConflict
+
+      let noMove = lonely .|. canMove
+          eastOK = proposeEast .&. complement (proposeWest `shiftL` 2)
+          eastConflict = proposeEast .&. (proposeWest `shiftL` 2)
+          westOK = proposeWest .&. complement (proposeEast `shiftR` 2)
+          westConflict = proposeWest .&. (proposeEast `shiftR` 2)
+      setBits y (noMove .|. eastConflict .|. westConflict .|. eastOK `shiftR` 1 .|. westOK `shiftL` 1 .|. northSouthConflict)
+
+      return (proposeSouth, prevSouth, if odd eastOK then y : extEast else extEast, anyMoved' || eastOK /= 0 || westOK /= 0 || northOK /= 0 || prevPrevSouthOK /= 0)
+    ) (0, 0, [], False) (assocs grid)
+  setBits maxY intoLast
+  setBits (maxY + 1) intoNew
+  unless (null extendingEast) $ do
+    for_ [minY' .. maxY'] $ \y -> modifyArray newGrid y (`shiftL` 1)
+    for_ extendingEast $ \y -> setBits y 1
+  -- Uh okay I really need to learn a way to return a Maybe out of runSTArray
+  if anyMoved || intoLast /= 0 || intoNew /= 0 then return newGrid else newArray (0, 0) 0
+
+nonzeroArea :: Array Int Integer -> Int
+nonzeroArea grid = height * width
+  where width = maximum (fmap bitSize grid)
+        height = maxY' - minY' + 1
+        (minY, maxY) = bounds grid
+        minY' = fromMaybe maxY (find ((/= 0) . (grid !)) [minY .. maxY])
+        maxY' = fromMaybe minY (find ((/= 0) . (grid !)) [maxY, maxY - 1 .. minY])
+        -- hmmm, Integer doesn't have finiteBitSize, so I have to do it myself?
+        bitSize 0 = 0
+        bitSize n | n >= 512 = 10 + bitSize (n `shiftR` 10)
+        bitSize n = 1 + bitSize (n `shiftR` 1)
 
 main :: IO ()
 main = do
   s <- readInputFile
-  let elves = Set.fromAscList [pos | (c, pos) <- enumGrid (lines s), c == '#']
-      rounds = map (\(a, _, _) -> a) (iterate elfMove (elves, cycle [North, South, West, East], 0))
-      (ys, xs) = unzip (Set.toList (rounds !! 10))
-      miny = minimum ys
-      maxy = maximum ys
-      minx = minimum xs
-      maxx = maximum xs
-      area = (maxy - miny + 1) * (maxx - minx + 1)
-  print (area - Set.size elves)
-  print (1 + fromJust (elemIndex True (zipWith (==) rounds (drop 1 rounds))))
+  let elves = map (foldl' elf 0) (lines s)
+      elf row '.' = row `shiftL` 1
+      elf row '#' = row `shiftL` 1 .|. 1
+      elf _ c = error (c : " is not an elf")
+      numElves = sum (map popCount elves)
+      elvesArr = listArray (0, length elves - 1) elves
+      dirs = [North, South, West, East]
+  case drop 9 (unfoldr step (elvesArr, cycle dirs)) of
+    [] -> print "ended before 10th iteration"
+    (area:_) -> print (area - numElves)
+  print (length (unfoldr step (elvesArr, cycle dirs)) + 1)
