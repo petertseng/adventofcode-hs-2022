@@ -18,7 +18,8 @@ None yet.
 
 ## Closing thoughts
 
-None yet.
+Although I had used the State monad before, this year was the first time I had occasion to use the Writer monad.
+I found it useful!
 
 ## Past solutions
 
