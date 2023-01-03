@@ -1,25 +1,43 @@
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE TupleSections #-}
+
 import AdventOfCode (readInputFile)
 import AdventOfCode.Split (splitOnOne)
 
 import Control.Arrow ((***))
-import Control.Monad (when)
-import Control.Monad.Writer (Writer, runWriter, tell)
-import Data.Semigroup (Min(Min))
-import Data.Set (Set)
-import qualified Data.Set as Set
+import Control.Monad (unless, when)
+import Control.Monad.ST (ST, runST)
+import Data.Array.MArray (newArray, readArray, writeArray)
+import Data.Array.ST (STUArray)
+import Data.Foldable (for_)
+import Data.STRef (modifySTRef', newSTRef, readSTRef)
 import Data.Tuple (swap)
 
 type Pos = (Int, Int)
 
-sand :: Int -> Set Pos -> (Int, Int)
-sand abyss rocks = (abyssGrain - Set.size rocks, Set.size total - Set.size rocks)
-  where (total, Min abyssGrain) = runWriter (sand' 0 500 rocks)
-        sand' :: Int -> Int -> Set Pos -> Writer (Min Int) (Set Pos)
-        sand' y x blocked | (y, x) `Set.member` blocked = return blocked
-        sand' y _ blocked | y > abyss = return blocked
-        sand' y x blocked = do
-          when (y >= abyss) $ tell (Min (Set.size blocked))
-          fmap (Set.insert (y, x)) (sand' (y + 1) x blocked >>= sand' (y + 1) (x - 1) >>= sand' (y + 1) (x + 1))
+sand :: Int -> [Pos] -> (Int, Int)
+sand abyss rocks = runST $ do
+  blocked <- newArray ((0, 500 - abyss - 1), (abyss + 1, 500 + abyss + 1)) False :: ST s (STUArray s Pos Bool)
+  for_ rocks (\r -> writeArray blocked r True)
+
+  rested <- newSTRef 0
+  firstAbyss <- newSTRef (maxBound :: Int)
+
+  let sand' y x = do
+        wasBlock <- readArray blocked (y, x)
+        unless wasBlock $ do
+          when (y >= abyss) (readSTRef rested >>= modifySTRef' firstAbyss . min)
+          when (y <= abyss) $ do
+            sand' (y + 1) x
+            sand' (y + 1) (x - 1)
+            sand' (y + 1) (x + 1)
+            modifySTRef' rested succ
+            writeArray blocked (y, x) True
+  sand' 0 500
+
+  fa <- readSTRef firstAbyss
+  re <- readSTRef rested
+  return (fa, re)
 
 rockPath :: String -> [Pos]
 rockPath s = map coord (pairs ("->" : words s))
@@ -44,7 +62,7 @@ main = do
   s <- readInputFile
   let rockPaths = map rockPath (lines s)
       abyss = maximum (map fst (concat rockPaths)) + 1
-      rocks = Set.fromList (concatMap expandPairs rockPaths)
+      rocks = concatMap expandPairs rockPaths
       (abyssGrains, totalGrains) = sand abyss rocks
   print abyssGrains
   print totalGrains
